@@ -5,7 +5,20 @@ let exercises = options.slice(0,4), mode='strength', set=1, state='idle', start=
 const elapsed=()=>accumulated+(state==='running'?Date.now()-start:0);
 function valid(id){const el=$(id), n=Number(el.value);if(!Number.isInteger(n)||n<Number(el.min)||n>Number(el.max)){ $('error').textContent=`${id==='rounds'?'セット数は1〜20':'休憩時間は1〜3600'}の整数で入力してください。`;el.focus();return false;} $('error').textContent='';return true;}
 function initAudio(){try{audio??=new(window.AudioContext||window.webkitAudioContext)();audio.resume().catch(()=>{});}catch{}}
-function beep(){if(!$('sound').checked||!audio||audio.state!=='running')return;try{const o=audio.createOscillator(),g=audio.createGain();o.connect(g);g.connect(audio.destination);o.frequency.value=880;g.gain.setValueAtTime(.12,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+.3);o.start();o.stop(audio.currentTime+.3);}catch{}}
+function beep(){
+  if(!$('sound').checked||!audio||audio.state!=='running')return;
+  try{
+    const o=audio.createOscillator(),g=audio.createGain(),now=audio.currentTime;
+    o.connect(g);g.connect(audio.destination);o.frequency.value=880;
+    // Full-volume tone; brief fades prevent clicks at the edges.
+    g.gain.setValueAtTime(0,now);
+    g.gain.linearRampToValueAtTime(1,now+.01);
+    g.gain.setValueAtTime(1,now+.95);
+    g.gain.linearRampToValueAtTime(0,now+1);
+    o.onended=()=>{o.disconnect();g.disconnect();};
+    o.start(now);o.stop(now+1);
+  }catch{}
+}
 async function keepAwake(){try{if('wakeLock'in navigator&&state==='running'){const lock=await navigator.wakeLock.request('screen');if(state==='running')wake=lock;else await lock.release();}}catch{}}
 function release(){if(wake){wake.release().catch(()=>{});wake=null;}}
 function list(){ $('exercise-list').replaceChildren();exercises.forEach((name,i)=>{const row=document.createElement('div');row.className='exercise-row';const num=document.createElement('span');num.textContent=String(i+1).padStart(2,'0');const select=document.createElement('select');select.setAttribute('aria-label',`種目 ${i+1}`);options.forEach(x=>select.add(new Option(x,x,false,x===name)));select.onchange=()=>{exercises[i]=select.value;};const remove=document.createElement('button');remove.textContent='×';remove.setAttribute('aria-label',`種目 ${i+1} を削除`);remove.onclick=()=>{exercises.splice(i,1);list();render();};row.append(num,select,remove);$('exercise-list').append(row);});}
